@@ -22,4 +22,8 @@ cdk = { version = "0.2.0", default-features = false, features = ["wallet"] }
 cdk-redb = { version = "0.2.0", default-features = false, features = ["wallet"] }
 cdk-sqlite = { version = "0.2.0", default-features = false, features = ["wallet"] }
 url = "2.3"
+dlc-messages = { version = "0.5.0", features = ["use-serde"] }
+lightning = "0.0.121"
+nostr = "0.29.1"
+
 
