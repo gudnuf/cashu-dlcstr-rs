@@ -1,20 +1,20 @@
+use std::collections::HashMap;
+
 use anyhow::{anyhow, Result};
-use cdk::mint_url::MintUrl;
-use cdk::nuts::CurrencyUnit;
-use cdk::wallet::multi_mint_wallet::WalletKey;
-use cdk::wallet::MultiMintWallet;
+use cdk::url::UncheckedUrl;
+use cdk::wallet::Wallet;
 use clap::Args;
 
 #[derive(Args)]
 pub struct UpdateMintUrlSubCommand {
     /// Old Mint Url
-    old_mint_url: MintUrl,
+    old_mint_url: UncheckedUrl,
     /// New Mint Url
-    new_mint_url: MintUrl,
+    new_mint_url: UncheckedUrl,
 }
 
 pub async fn update_mint_url(
-    multi_mint_wallet: &MultiMintWallet,
+    wallets: HashMap<UncheckedUrl, Wallet>,
     sub_command_args: &UpdateMintUrlSubCommand,
 ) -> Result<()> {
     let UpdateMintUrlSubCommand {
@@ -22,12 +22,8 @@ pub async fn update_mint_url(
         new_mint_url,
     } = sub_command_args;
 
-    let mut wallet = multi_mint_wallet
-        .get_wallet(&WalletKey::new(
-            sub_command_args.old_mint_url.clone(),
-            CurrencyUnit::Sat,
-        ))
-        .await
+    let mut wallet = wallets
+        .get(old_mint_url)
         .ok_or(anyhow!("Unknown mint url"))?
         .clone();
 

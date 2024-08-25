@@ -1,28 +1,17 @@
-use std::io;
+use std::collections::HashMap;
 use std::io::Write;
 use std::str::FromStr;
+use std::{io, println};
 
 use anyhow::{bail, Result};
-use cdk::nuts::CurrencyUnit;
-use cdk::wallet::multi_mint_wallet::{MultiMintWallet, WalletKey};
-use cdk::Bolt11Invoice;
-use clap::Args;
+use cdk::amount::SplitTarget;
+use cdk::wallet::Wallet;
+use cdk::{Bolt11Invoice, UncheckedUrl};
 
 use crate::sub_commands::balance::mint_balances;
 
-#[derive(Args)]
-pub struct MeltSubCommand {
-    /// Currency unit e.g. sat
-    #[arg(default_value = "sat")]
-    unit: String,
-}
-
-pub async fn pay(
-    multi_mint_wallet: &MultiMintWallet,
-    sub_command_args: &MeltSubCommand,
-) -> Result<()> {
-    let unit = CurrencyUnit::from_str(&sub_command_args.unit)?;
-    let mints_amounts = mint_balances(multi_mint_wallet, &unit).await?;
+pub async fn pay(wallets: HashMap<UncheckedUrl, Wallet>) -> Result<()> {
+    let mints_amounts = mint_balances(wallets).await?;
 
     println!("Enter mint number to melt from");
 
@@ -38,11 +27,6 @@ pub async fn pay(
     }
 
     let wallet = mints_amounts[mint_number].0.clone();
-
-    let wallet = multi_mint_wallet
-        .get_wallet(&WalletKey::new(wallet, unit))
-        .await
-        .expect("Known wallet");
 
     println!("Enter bolt11 invoice request");
 
@@ -63,7 +47,7 @@ pub async fn pay(
 
     println!("{:?}", quote);
 
-    let melt = wallet.melt(&quote.id).await?;
+    let melt = wallet.melt(&quote.id, SplitTarget::default()).await?;
 
     println!("Paid invoice: {}", melt.state);
     if let Some(preimage) = melt.preimage {

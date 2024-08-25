@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -5,17 +6,15 @@ use std::sync::Arc;
 
 use anyhow::{bail, Result};
 use bip39::Mnemonic;
-use cdk::cdk_database;
 use cdk::cdk_database::WalletDatabase;
-use cdk::wallet::client::HttpClient;
-use cdk::wallet::{MultiMintWallet, Wallet};
+use cdk::wallet::Wallet;
+use cdk::{cdk_database, UncheckedUrl};
 use cdk_redb::WalletRedbDatabase;
 use cdk_sqlite::WalletSqliteDatabase;
 use clap::{Parser, Subcommand};
 use rand::Rng;
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
-use url::Url;
 
 mod sub_commands;
 
@@ -37,9 +36,6 @@ struct Cli {
     /// Logging level
     #[arg(short, long, default_value = "error")]
     log_level: Level,
-    /// NWS Proxy
-    #[arg(short, long)]
-    proxy: Option<Url>,
     #[command(subcommand)]
     command: Commands,
 }
@@ -51,7 +47,7 @@ enum Commands {
     /// Balance
     Balance,
     /// Pay bolt11 invoice
-    Pay(sub_commands::melt::MeltSubCommand),
+    Pay,
     /// Claim pending mint quotes that have been paid
     MintPending,
     /// Receive token
@@ -130,74 +126,62 @@ async fn main() -> Result<()> {
         }
     };
 
-    let mut wallets: Vec<Wallet> = Vec::new();
+    let mut wallets: HashMap<UncheckedUrl, Wallet> = HashMap::new();
 
     let mints = localstore.get_mints().await?;
 
     for (mint, _) in mints {
-        let mut wallet = Wallet::new(
+        let wallet = Wallet::new(
             &mint.to_string(),
             cdk::nuts::CurrencyUnit::Sat,
             localstore.clone(),
             &mnemonic.to_seed_normalized(""),
             None,
         );
-        if let Some(proxy_url) = args.proxy.as_ref() {
-            wallet.set_client(HttpClient::with_proxy(proxy_url.clone(), None, true)?);
-        }
 
-        wallets.push(wallet);
+        wallets.insert(mint, wallet);
     }
-
-    let multi_mint_wallet = MultiMintWallet::new(wallets);
 
     match &args.command {
         Commands::DecodeToken(sub_command_args) => {
             sub_commands::decode_token::decode_token(sub_command_args)
         }
-        Commands::Balance => sub_commands::balance::balance(&multi_mint_wallet).await,
-        Commands::Pay(sub_command_args) => {
-            sub_commands::melt::pay(&multi_mint_wallet, sub_command_args).await
-        }
+        Commands::Balance => sub_commands::balance::balance(wallets).await,
+        Commands::Pay => sub_commands::melt::pay(wallets).await,
         Commands::Receive(sub_command_args) => {
             sub_commands::receive::receive(
-                &multi_mint_wallet,
-                localstore,
+                wallets,
                 &mnemonic.to_seed_normalized(""),
+                localstore,
                 sub_command_args,
             )
             .await
         }
         Commands::Send(sub_command_args) => {
-            sub_commands::send::send(&multi_mint_wallet, sub_command_args).await
+            sub_commands::send::send(wallets, sub_command_args).await
         }
-        Commands::CheckSpendable => {
-            sub_commands::check_spent::check_spent(&multi_mint_wallet).await
-        }
+        Commands::CheckSpendable => sub_commands::check_spent::check_spent(wallets).await,
         Commands::MintInfo(sub_command_args) => {
-            sub_commands::mint_info::mint_info(args.proxy, sub_command_args).await
+            sub_commands::mint_info::mint_info(sub_command_args).await
         }
         Commands::Mint(sub_command_args) => {
             sub_commands::mint::mint(
-                &multi_mint_wallet,
+                wallets,
                 &mnemonic.to_seed_normalized(""),
                 localstore,
                 sub_command_args,
             )
             .await
         }
-        Commands::MintPending => {
-            sub_commands::pending_mints::mint_pending(&multi_mint_wallet).await
-        }
+        Commands::MintPending => sub_commands::pending_mints::mint_pending(wallets).await,
         Commands::Burn(sub_command_args) => {
-            sub_commands::burn::burn(&multi_mint_wallet, sub_command_args).await
+            sub_commands::burn::burn(wallets, sub_command_args).await
         }
         Commands::Restore(sub_command_args) => {
-            sub_commands::restore::restore(&multi_mint_wallet, sub_command_args).await
+            sub_commands::restore::restore(wallets, sub_command_args).await
         }
         Commands::UpdateMintUrl(sub_command_args) => {
-            sub_commands::update_mint_url::update_mint_url(&multi_mint_wallet, sub_command_args)
-                .await
+            sub_commands::update_mint_url::update_mint_url(wallets, sub_command_args).await
         }
     }
 }
