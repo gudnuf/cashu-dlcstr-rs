@@ -67,7 +67,7 @@ enum Commands {
     /// Update Mint Url
     UpdateMintUrl(sub_commands::update_mint_url::UpdateMintUrlSubCommand),
     // Create Global DLC Offer
-    CreateOffer,
+    DLC(sub_commands::dlc::dlc::DLCSubCommand),
 }
 
 #[tokio::main]
@@ -185,6 +185,6 @@ async fn main() -> Result<()> {
         Commands::UpdateMintUrl(sub_command_args) => {
             sub_commands::update_mint_url::update_mint_url(wallets, sub_command_args).await
         }
-        Commands::CreateOffer => sub_commands::dlc_offer_contract::create_offer().await,
+        Commands::DLC(sub_command_args) => sub_commands::dlc::dlc::dlc(sub_command_args).await,
     }
 }
