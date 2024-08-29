@@ -3,7 +3,8 @@ use std::str::FromStr;
 use cdk::secp256k1::{schnorr::Signature, XOnlyPublicKey};
 use dlc_messages::{
     contract_msgs::{
-        ContractDescriptor, ContractInfoInner, ContractOutcome, EnumeratedContractDescriptor,
+        ContractDescriptor, ContractInfo, ContractInfoInner, ContractOutcome,
+        EnumeratedContractDescriptor, SingleContractInfo,
     },
     oracle_msgs::{
         EnumEventDescriptor, EventDescriptor, OracleAnnouncement, OracleAttestation, OracleEvent,
@@ -23,10 +24,16 @@ pub struct GlobalAttestation {
 impl GlobalContractOffer {
     pub fn new() -> Self {
         let contract_descriptor = EnumeratedContractDescriptor {
-            payouts: vec![ContractOutcome {
-                outcome: String::from("dummy string"),
-                offer_payout: 5,
-            }],
+            payouts: vec![
+                ContractOutcome {
+                    outcome: String::from("team a wins"),
+                    offer_payout: 5,
+                },
+                ContractOutcome {
+                    outcome: String::from("team b wins"),
+                    offer_payout: 5,
+                },
+            ],
         };
 
         let oracle_info = SingleOracleInfo {
@@ -80,5 +87,41 @@ impl GlobalAttestation {
 
     pub fn encode_info(&self) -> Vec<u8> {
         self.info.encode()
+    }
+}
+
+pub struct OfferCashuDlc {
+    info: ContractInfo,
+}
+
+impl OfferCashuDlc {
+    pub fn new(announcement: &OracleAnnouncement) -> Self {
+        let contract_descriptor = EnumeratedContractDescriptor {
+            payouts: vec![
+                ContractOutcome {
+                    outcome: String::from("team a wins"),
+                    offer_payout: 5,
+                },
+                ContractOutcome {
+                    outcome: String::from("team b wins"),
+                    offer_payout: 5,
+                },
+            ],
+        };
+        let contract_info = SingleContractInfo {
+            total_collateral: 100,
+            contract_info: ContractInfoInner {
+                contract_descriptor: ContractDescriptor::EnumeratedContractDescriptor(
+                    contract_descriptor,
+                ),
+                oracle_info: OracleInfo::Single(SingleOracleInfo {
+                    oracle_announcement: announcement.clone(),
+                }),
+            },
+        };
+
+        OfferCashuDlc {
+            info: ContractInfo::SingleContractInfo(contract_info),
+        }
     }
 }
